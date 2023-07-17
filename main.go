@@ -3,39 +3,68 @@ package main
 import (
 	"fmt"
 	"os"
-	"bufio"
 	"encoding/json"
 	"strings"
+	"strconv"
+
+	"github.com/jedib0t/go-pretty/v6/table"
 )
 
 func main() {
-	var title string
-	var err error
 	var todos []todo
 	var newTodo todo
 
 	todos, _ = readTodo()
 
-	if os.Args[1] == "create" {
-		fmt.Print("Title: ")
-
-		reader := bufio.NewReader(os.Stdin)
-		title, err = reader.ReadString('\n')
-		if err != nil {
-			fmt.Println("err reading title:", err)
-		}
+	switch os.Args[1] {
+	case "create":
+		var title string
+		title = os.Args[2]
 
 		newTodo.Title = strings.TrimRight(title, "\r\n")
 
 		todos = append(todos, newTodo)
 
-		jsonTodo, err := json.MarshalIndent(todos, "", " ")
-		if err != nil {
-			fmt.Println("err marshaling:", err)
-		}
+		updateJsonTodo(todos)
 
-		os.WriteFile("todos.json", []byte(jsonTodo), 0644)
-		fmt.Println(string(jsonTodo))
+		fmt.Printf("%s added to the list\n", title)
+		showTable(todos)
+
+	case "settime":
+		// todo: change datatype to time.Time
+		var date string
+		var id int
+
+		id, _ = strconv.Atoi(os.Args[2])
+		date = os.Args[3]
+		todos[id].Time = date
+
+		updateJsonTodo(todos)
+		showTable(todos)
+		
+	case "delete":
+		var id int
+		var newTodo []todo
+		id, _ = strconv.Atoi(os.Args[2])
+		if id < len(todos) {
+			newTodo = append(todos[:id], todos[id+1:]...)
+			updateJsonTodo(newTodo)
+			showTable(newTodo)
+		} else {
+			fmt.Println("Out of bounds")
+		}
+	case "done":
+		var id int
+		id, _ = strconv.Atoi(os.Args[2])
+
+		todos[id].Done = true
+		updateJsonTodo(todos)
+		showTable(todos)
+	case "show":
+		showTable(todos)
+
+	default:
+		fmt.Println("Invalid command")
 	}
 }
 
@@ -60,3 +89,21 @@ type todo struct {
 	Done bool `json:"done"`
 }
 
+func showTable(todos []todo) {
+	t := table.NewWriter()
+	t.SetOutputMirror(os.Stdout)
+	t.AppendHeader(table.Row{"#", "Title", "Time", "Done"})
+	for i, e := range todos {
+		t.AppendRow([]interface{}{ i, e.Title, e.Time, e.Done })
+	}
+	t.SetStyle(table.StyleColoredGreenWhiteOnBlack)
+	t.Render()
+}
+
+func updateJsonTodo(todos []todo) {
+		jsonTodo, err := json.MarshalIndent(todos, "", " ")
+		if err != nil {
+			fmt.Println("err marshaling:", err)
+		}
+		os.WriteFile("todos.json", jsonTodo, 0644)
+}
